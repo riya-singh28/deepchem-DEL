@@ -1,119 +1,144 @@
-from pyds import Evaluate, Featurize, Infer, Train, Settings, Data, Split
-import os
-import tempfile
+from typing import Any, Dict, Mapping, Optional, Tuple
+from pyds import Evaluate, Featurize, Infer, Train, Settings, Data, Split, TvtSplit
+import json
 
 
 class Pipeline:
-    def __init__(self, pipeline_config):
-        self.pipeline_config = pipeline_config
-        self.featurize_client = pipeline_config.get("featurize_client")
-        self.split_client = pipeline_config.get("split_client")
-        self.train_client = pipeline_config.get("train_client")
-        self.evaluate_client = pipeline_config.get("evaluate_client")
-        self.infer_client = pipeline_config.get("infer_client")
-        self.upload_client = pipeline_config.get("upload_client")
+    """Run featurize → split → train → evaluate → infer using configured Deepchem server clients.
+    """
 
-    def upload_data(self, file_path, output=None, **kwargs):
+    def init(self, config_file: str) -> None:
+        """Initialize client instances and load a configuration JSON file.
+
+        Parameters
+        ----------
+        config_file: str
+            Path to a JSON file containing the configuration for the pipeline.
         """
-        Handles data upload using the upload_client.
+
+        # Initialize the settings
+        test_settings = Settings(
+        settings_file='settings.json',
+        profile="test_profile",
+        project="test_project",
+        base_url="http://localhost:8000",
+        )
+
+        # Initialize the clients
+        self.featurize_client = Featurize(settings=test_settings)
+        self.tvt_split_client = TvtSplit(settings=test_settings)
+        self.train_client = Train(settings=test_settings)
+        self.evaluate_client = Evaluate(settings=test_settings)
+        self.infer_client = Infer(settings=test_settings)
+        self.data_client = Data(settings=test_settings)
+
+        # Load the configuration
+        if config_file is None:
+            raise ValueError("No config_file provided in config_file.")
+        with open(config_file, "r") as f:
+            self.config = json.load(f)
+
+    def upload_data(self) -> Dict[str, Any]:
+        """Upload data using the configured ``Data`` client.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Result mapping returned by the data client, including an address
+            for the uploaded dataset.
+
+        Raises
+        ------
+        ValueError
+            If required configuration or client is missing.
         """
-        if self.upload_client is None:
-            raise ValueError("No upload_client provided in pipeline_config or notebook.")
-        return self.upload_client.upload_data(
+
+        config = self.config
+        files_to_upload = config.get("files_to_upload")
+        if files_to_upload is None:
+            raise ValueError("No files_to_upload provided in config_file.")
+        file_path = files_to_upload.get("file_path")
+        if file_path is None:
+            raise ValueError("No dataset_path provided in config_file.")
+        if self.data_client is None:
+            raise ValueError("No data_client provided in config_file.")
+        return self.data_client.upload_data(
             file_path=file_path,
-            output=output or "uploaded_dataset",
-            **kwargs
+            filename=files_to_upload.get("filename"),
+            description=files_to_upload.get("description"),
         )
 
-    def run(
-        self,
-        dataset_address=None,
-        featurizer=None,
-        featurizer_kwargs=None,
-        split_type=None,
-        split_sizes=None,
-        model=None,
-        model_init_kwargs=None,
-        model_train_kwargs=None,
-        metrics=None,
-        output_prefix="test"
-    ):
-        # If config has any files to upload, upload them at the start
-        uploaded_files = []
-        config_files = self.pipeline_config.get("files_to_upload", [])
-        if config_files and self.upload_client is None:
-            raise ValueError("No upload_client available to upload files specified in config.")
+    def denoise_data(self) -> Dict[str, Any]:
+        raise NotImplementedError("Need to implement denoise_data method.")
 
-        for file_info in config_files:
-            # file_info can be a string (file path) or dict with more info
-            if isinstance(file_info, str):
-                upload_result = self.upload_data(file_info)
-            elif isinstance(file_info, dict):
-                file_path = file_info.get("file_path")
-                upload_kwargs = {k: v for k, v in file_info.items() if k != "file_path"}
-                upload_result = self.upload_data(file_path, **upload_kwargs)
-            else:
-                raise ValueError("Invalid file info in files_to_upload: {}".format(file_info))
-            uploaded_files.append(upload_result)
-        # If dataset_address is not provided, use the first uploaded file's dataset_address
-        if dataset_address is None:
-            if uploaded_files:
-                dataset_address = uploaded_files[0].get("dataset_address")
-            else:
-                raise ValueError("No dataset_address provided and no files uploaded.")
+    def run(self) -> Dict[str, Any]:
+        """Execute the full pipeline using parameters from the loaded config.
 
-        # Use config defaults if not provided
-        featurizer = featurizer or self.pipeline_config.get("featurizer")
-        featurizer_kwargs = featurizer_kwargs or self.pipeline_config.get("feat_kwargs", {})
-        split_type = split_type or self.pipeline_config.get("split_type", "random")
-        split_sizes = split_sizes or self.pipeline_config.get("split_sizes", [0.8, 0.1, 0.1])
-        model = model or self.pipeline_config.get("model")
-        model_init_kwargs = model_init_kwargs or self.pipeline_config.get("init_kwargs", {})
-        model_train_kwargs = model_train_kwargs or self.pipeline_config.get("train_kwargs", {})
-        metrics = metrics or self.pipeline_config.get("metrics")
+        Returns
+        -------
+        Dict[str, Any]
+            Mapping of artifact names to addresses/identifiers produced by each
+            stage of the pipeline.
+        """
+        # Upload the data
+        file_path = self.upload_data()
 
-        # Featurize
+        # Get the configuration
+        featurizer_config = self.config.get("featurizer_config")
+        split_config = self.config.get("split_config")
+        train_config = self.config.get("train_config")
+        evaluate_config = self.config.get("evaluate_config")
+        infer_config = self.config.get("infer_config")
+
+        # Featurize the data
         featurized_dataset_address = self.featurize_client.run(
-            dataset_address=dataset_address,
-            featurizer=featurizer,
-            featurizer_kwargs=featurizer_kwargs,
-            output=f"{output_prefix}_featurized_dataset"
+            dataset_address=file_path,
+            featurizer=featurizer_config.get("featurizer"),
+            output=featurizer_config.get("output"),
+            dataset_column=featurizer_config.get("dataset_column"),
+            feat_kwargs=featurizer_config.get("feat_kwargs"),
+            label_column=featurizer_config.get("label_column"),
         )
 
-        # Split
-        train_split_address, val_split_address, test_split_address = self.split_client.run(
-            dataset_address=featurized_dataset_address,
-            split_type=split_type,
-            split_sizes=split_sizes,
-            output=f"{output_prefix}_split_output"
+        # Split the data
+        train_split_address, val_split_address, test_split_address = self.tvt_split_client.run(
+            dataset_address=featurized_dataset_address["featurized_file_address"],
+            split_type=split_config.get("split_type"),
+            split_sizes=split_config.get("split_sizes"),
+            output=split_config.get("output"),
         )
 
-        # Train
+        # Train the model
         trained_model_address = self.train_client.run(
-            featurized_dataset_address=train_split_address,
-            model=model,
-            init_kwargs=model_init_kwargs,
-            train_kwargs=model_train_kwargs,
-            output=f"{output_prefix}_trained_model"
+            dataset_address=train_split_address["train_split_address"],
+            model_type=train_config.get("model_type"),
+            model_name=train_config.get("model_name"),
+            init_kwargs=train_config.get("init_kwargs"),
+            train_kwargs=train_config.get("train_kwargs"),
         )
 
-        # Evaluate
+        # Evaluate the model
         evaluation_result_address = self.evaluate_client.run(
-            trained_model_address=trained_model_address,
-            featurized_dataset_address=(train_split_address, val_split_address, test_split_address),
-            metrics=metrics,
-            output=f"{output_prefix}_evaluation_result"
+            dataset_addresses=(train_split_address, val_split_address, test_split_address),
+            model_address=trained_model_address["trained_model_address"],
+            metrics=evaluate_config.get("metrics"),
+            output_key=evaluate_config.get("output_key"),
+            is_metric_plots=evaluate_config.get("is_metric_plots"),
         )
 
-        # Inference
+        # Inference the model
         inference_result_address = self.infer_client.run(
-            trained_model_address=trained_model_address,
-            featurized_dataset_address=test_split_address,
-            output=f"{output_prefix}_inference_result"
+            model_address=trained_model_address["trained_model_address"],
+            data_address=test_split_address,
+            output=infer_config.get("output"),
+            dataset_column=infer_config.get("dataset_column"),
+            shard_size=infer_config.get("shard_size"),
+            threshold=infer_config.get("threshold"),
         )
 
+        # Return the results
         return {
-            "uploaded_files": uploaded_files,
+            "uploaded_files": file_path,
             "featurized_dataset_address": featurized_dataset_address,
             "train_split_address": train_split_address,
             "val_split_address": val_split_address,
