@@ -2,10 +2,8 @@ import json
 import pandas as pd
 import argparse
 import logging
-# from utils.pipeline import Pipeline
-# from utils.denoise_utils import calculate_poisson_enrichment
-from pipeline import Pipeline
-from denoise_utils import calculate_poisson_enrichment
+from utils.pipeline import Pipeline
+from utils.denoise_utils import calculate_poisson_enrichment
 
 
 def denoise_data(file_path: str, output_file_path: str) -> pd.DataFrame:
