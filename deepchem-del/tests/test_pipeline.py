@@ -1,24 +1,12 @@
-import json
 from utils.pipeline import Pipeline
 
 
 def test_pipeline_end_to_end() -> None:
     """End-to-end pipeline test using a temporary JSON config.
-
-    This test writes a minimal configuration file, initializes the
-    ``Pipeline`` with it, runs the full pipeline, and asserts that
-    the returned mapping contains all expected artifact keys.
-
-    Returns
-    -------
-    None
-        Pytest test function; assertions validate behavior.
     """
-
-    # make a config file
-    config_file: Dict[str, Any] = {
+    config_file = {
         "files_to_upload": {
-            "file_path": "data/dataset.csv",
+            "file_path": "tests/assets/test_dataset.csv",
             "filename": "name",
             "description": "desc",
         },
@@ -26,39 +14,35 @@ def test_pipeline_end_to_end() -> None:
             "featurizer": "circular_fps",
             "output": "feat_out",
             "dataset_column": "smiles",
-            "feat_kwargs": {"radius": 2, "size": 1024},
             "label_column": "y",
         },
         "split_config": {
-            "split_type": "random",
-            "split_sizes": [0.8, 0.1, 0.1],
-            "output": "split_out",
+            "splitter_type": "random",
+            "frac_train": 0.8,
+            "frac_valid": 0.1,
+            "frac_test": 0.1
         },
         "train_config": {
-            "model_type": "sklearn",
-            "model_name": "rf",
-            "init_kwargs": {"n_estimators": 10},
-            "train_kwargs": {},
+            "model_type": "random_forest_regressor",
+            "model_name": "mapk14_1M_rf_reg_try1",
+            "init_kwargs": {"n_jobs": -1},
+            "train_kwargs": {}
         },
         "evaluate_config": {
-            "metrics": ["roc_auc_score"],
-            "output_key": "eval_out",
-            "is_metric_plots": False,
+            "metrics": ["rms_score"],
+            "output_key": "mapk14_1M_evaluation_result",
+            "is_metric_plots": False
         },
         "infer_config": {
-            "output": "preds",
+            "output": "mapk14_1M_inference_result",
             "dataset_column": "smiles",
-            "shard_size": 4096,
-            "threshold": 0.5,
-        },
+            "shard_size": 8192,
+            "threshold": 0.5
+        }
     }
-    # make a config.json file with the config file
-    with open("config.json", "w") as f:
-        json.dump(config_file, f)
-    p: Pipeline = Pipeline()
-    p.init("config.json")
+    p = Pipeline(config_file)
 
-    result: Dict[str, Any] = p.run()
+    result = p.run()
     
     assert set(result.keys()) == {
         "uploaded_files",

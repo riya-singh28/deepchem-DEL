@@ -4,12 +4,8 @@ import pandas as pd
 import pytest
 
 from utils.denoise_utils import (
-    aggregate_columns,
-    calculate_enrichment_score,
+    calculate_normalized_enrichment_score,
     calculate_poisson_enrichment,
-    get_enrichment_ratio,
-    poissfit,
-    calculate_hit_threshold,
 )
 
 
@@ -20,7 +16,7 @@ from utils.denoise_utils import (
 ])
 def test_basic_enrichment_calculation(row, total_sum, row_count, column_name, expected):
     """Test basic enrichment score calculation with known values."""
-    result = calculate_enrichment_score(row, total_sum, row_count, column_name)
+    result = calculate_normalized_enrichment_score(row, total_sum, row_count, column_name)
     assert abs(result - expected) < 1e-10, f"Expected {expected}, got {result}"
     assert result > 0 if expected > 0 else result < 0, "Enrichment should be positive or negative"
 

@@ -61,7 +61,7 @@ def aggregate_columns(df: pd.DataFrame, column_groups: Dict[str, List[str]], ope
     return result_df
 
 
-def calculate_enrichment_score(row: pd.Series, total_sum: float, row_count: int, column_name: str) -> float:
+def calculate_normalized_enrichment_score(row: pd.Series, total_sum: float, row_count: int, column_name: str) -> float:
     """
     This transformation function calculates the enrichment score for each row
 
