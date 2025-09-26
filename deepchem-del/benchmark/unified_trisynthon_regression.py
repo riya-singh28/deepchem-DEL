@@ -5,13 +5,9 @@ Unified Trisynthon Regression Pipeline.
 import json
 import pandas as pd
 import argparse
-# from utils.logging_utils import setup_logging
-# from utils.pipeline import Pipeline
-# from utils.denoise_utils import calculate_poisson_enrichment
-
-from logging_utils import setup_logging
-from denoise_utils import calculate_poisson_enrichment
-from pipeline import Pipeline
+from utils.logging_utils import setup_logging
+from utils.pipeline import Pipeline
+from utils.denoise_utils import calculate_poisson_enrichment
 
 from typing import List, Dict, Any
 
