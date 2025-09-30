@@ -1,6 +1,6 @@
 {
-    "profile": "test_profile",
-    "project": "test_project",
-    "base_url": "http://localhost:8000",
-    "additional_settings": {}
+  "profile": "test_profile",
+  "project": "test_project",
+  "base_url": "http://localhost:8000",
+  "additional_settings": {}
 }
