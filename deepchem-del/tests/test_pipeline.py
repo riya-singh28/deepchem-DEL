@@ -9,8 +9,9 @@ def test_pipeline_end_to_end(pipeline_config):
     result = p.run()
 
     tvt_split_address = result["train_valid_test_split_address"]
-    assert len(tvt_split_address['train_valid_test_split_results_address']) == 3
-    
+    assert len(
+        tvt_split_address['train_valid_test_split_results_address']) == 3
+
     assert set(result.keys()) == {
         "uploaded_files",
         "featurized_dataset_address",

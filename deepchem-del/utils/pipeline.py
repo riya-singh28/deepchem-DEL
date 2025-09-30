@@ -22,21 +22,19 @@ class Pipeline:
 
         logger.info("Initializing pipeline settings and clients")
 
-        # Initialize the settings
-        test_settings = Settings(
-            settings_file='settings.json',
-            profile="test_profile",
-            project="test_project",
-            base_url="http://localhost:8000",
-        )
+        # Initialize the settings from the default settings file
+        if config.get("settings_file") is None:
+            settings = Settings(settings_file='./configs/default_settings.json')
+        else:
+            settings = Settings(settings_file=config.get("settings_file"))
 
         # Initialize the clients
-        self.featurize_client = Featurize(settings=test_settings)
-        self.tvt_split_client = TVTSplit(settings=test_settings)
-        self.train_client = Train(settings=test_settings)
-        self.evaluate_client = Evaluate(settings=test_settings)
-        self.infer_client = Infer(settings=test_settings)
-        self.data_client = Data(settings=test_settings)
+        self.featurize_client = Featurize(settings=settings)
+        self.tvt_split_client = TVTSplit(settings=settings)
+        self.train_client = Train(settings=settings)
+        self.evaluate_client = Evaluate(settings=settings)
+        self.infer_client = Infer(settings=settings)
+        self.data_client = Data(settings=settings)
 
         # Load the configuration
         if config is None:
@@ -64,25 +62,20 @@ class Pipeline:
 
         logger.info("Uploading data via Data client", extra={"run_id": self.run_id})
         config = self.config
+        # files_to_upload is a list of files to upload. It can also be empty.
         files_to_upload = config.get("files_to_upload")
         if files_to_upload is None:
-            logger.error("Missing 'files_to_upload' in configuration")
-            raise ValueError("No files_to_upload provided in config_file.")
-        file_path = files_to_upload.get("file_path")
-        if file_path is None:
-            logger.error("Missing 'file_path' under 'files_to_upload' in configuration")
-            raise ValueError("No dataset_path provided in config_file.")
-        if self.data_client is None:
-            logger.error("Data client not initialized")
-            raise ValueError("No data_client provided in config_file.")
-        result = self.data_client.upload_data(
-            file_path=file_path,
-            filename=files_to_upload.get("filename"),
-            description=files_to_upload.get("description"),
-        )
+            logger.info("No files to upload", extra={"run_id": self.run_id})
+            return None
+        uploaded_files = []
+        for file_path in files_to_upload:
+            upload_file = self.data_client.upload_data(
+                file_path=file_path
+            )
+            uploaded_files.append(upload_file)
         logger.info("Data upload complete", extra={"run_id": self.run_id})
-        logger.debug("Uploaded data response", extra={"run_id": self.run_id, "payload": result})
-        return result
+        logger.debug("Uploaded data response", extra={"run_id": self.run_id, "payload": uploaded_files})
+        return uploaded_files
 
     def run(self) -> Dict[str, Any]:
         """Execute the full pipeline using parameters from the loaded config.
@@ -117,7 +110,7 @@ class Pipeline:
             logger.info("Featurization started", extra={"run_id": self.run_id})
             t_feat_start = perf_counter()
             featurized_dataset_address = self.featurize_client.run(
-                dataset_address=denoised_file_path['dataset_address'],
+                dataset_address=denoised_file_path[-1]['dataset_address'],
                 featurizer=featurizer_config.get("featurizer"),
                 output=featurizer_config.get("output"),
                 dataset_column=featurizer_config.get("dataset_column"),
@@ -246,7 +239,7 @@ class Pipeline:
             result: Dict[str, Any] = {
                 "uploaded_files": denoised_file_path,
                 "featurized_dataset_address": featurized_dataset_address,
-                "train_valid_test_split_results_address": train_valid_test_split_address,
+                "train_valid_test_split_address": train_valid_test_split_address,
                 "trained_model_address": trained_model_address,
                 "evaluation_result_address": evaluation_result_address,
                 "inference_result_address": inference_result_address
@@ -254,6 +247,6 @@ class Pipeline:
             logger.info("Pipeline run complete", extra={"run_id": self.run_id})
             logger.debug("Pipeline result payload", extra={"run_id": self.run_id, "payload": result})
             return result
-        except Exception:
-            logger.exception("Pipeline run failed", extra={"run_id": self.run_id})
+        except Exception as e:
+            logger.error("Pipeline run failed", extra={"run_id": self.run_id, "error": e})
             raise
