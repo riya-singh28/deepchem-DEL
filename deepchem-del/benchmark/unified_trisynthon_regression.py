@@ -3,8 +3,10 @@ Unified Trisynthon Regression Pipeline.
 """
 
 import json
+import yaml
 import pandas as pd
 import argparse
+from datetime import datetime
 from utils.logging_utils import setup_logging
 from utils.pipeline import Pipeline
 from utils.denoise_utils import calculate_poisson_enrichment
@@ -13,10 +15,13 @@ from typing import List, Dict, Any
 
 logger = setup_logging(__name__)
 
-def denoise_data(file_path: str,
-                 output_file_path: str,
-                 control_cols: List[str] = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3'],
-                 target_cols: List[str] = ['seq_target_1', 'seq_target_2', 'seq_target_3']) -> str:
+
+def denoise_data(
+    file_path: str,
+    output_file_path: str,
+    control_cols: List[str] = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3'],
+    target_cols: List[str] = ['seq_target_1', 'seq_target_2', 'seq_target_3']
+) -> str:
     """
     This function performs data preprocessing steps including:
     - Removing rows with missing SMILES
@@ -55,13 +60,20 @@ def denoise_data(file_path: str,
     'example_output.csv'
     """
     data = pd.read_csv(file_path)
-    data = data.dropna(subset=['smiles'])
-    data = data.drop_duplicates(subset=['smiles'])
+    data_clean = data.dropna(subset=['smiles'])
+    dropped_na = data[~data.index.isin(data_clean.index)]
+    logger.info("Dropped rows (dropna)", extra={"rows": len(dropped_na)})
+
+    data_unique = data_clean.drop_duplicates(subset=['smiles'])
+    dropped_duplicates = data_clean[~data_clean.index.isin(data_unique.index)]
+    logger.info("Dropped rows (drop duplicates)",
+                extra={"rows": len(dropped_duplicates)})
 
     # calculate poisson enrichment
-    data = calculate_poisson_enrichment(data, control_cols, target_cols)
+    data = calculate_poisson_enrichment(data_unique, control_cols, target_cols)
     data.to_csv(output_file_path, index=False)
     return output_file_path
+
 
 def unified_trisynthon_regression_pipeline(config: dict) -> Dict[str, Any]:
     """
@@ -98,18 +110,17 @@ def unified_trisynthon_regression_pipeline(config: dict) -> Dict[str, Any]:
     ...     config = json.load(f)
     >>> unified_trisynthon_regression_pipeline(config)
     """
-    denoised_file_path = denoise_data(config['denoise_config']['file_path'],
-                                      config['denoise_config']['denoised_file_path'])
-    config['files_to_upload']['file_path'] = denoised_file_path
-    logger.info("Denoised file path set for upload", extra={"file_path": config['files_to_upload']['file_path']})
+    denoised_file_path = denoise_data(
+        config['denoise_config']['file_path'],
+        config['denoise_config']['denoised_file_path'])
+    config['files_to_upload'].append(denoised_file_path)
+    logger.info("Denoised file path set for upload",
+                extra={"file_path": config['files_to_upload'][-1]})
     pipe = Pipeline(config)
     result = pipe.run()
     logger.info("Pipeline result ready", extra={"result": result})
-    # save result to json
-    with open('result.json', 'w') as f:
-        json.dump(result, f)
-    logger.info("Pipeline result ready", extra={"result_file": 'result.json'})
     return result
+
 
 def main(args) -> None:
     """
@@ -124,19 +135,23 @@ def main(args) -> None:
     `python unified_trisynthon_regression.py --config config.json`
     """
     with open(args.config, 'r') as f:
-        config = json.load(f)
+        config = yaml.safe_load(f)
     result = unified_trisynthon_regression_pipeline(config)
-    # save result to json
-    with open('result.json', 'w') as f:
+
+    result_file_name = f"{result['run_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(result_file_name, 'w') as f:
         json.dump(result, f)
-    logger.info("Pipeline result ready", extra={"result_file": 'result.json'})
+    logger.info("Pipeline result ready",
+                extra={"result_file": result_file_name})
+
 
 if __name__ == "__main__":
     # Command-line argument parser for the unified trisynthon regression pipeline
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config",
-                        type=str,
-                        required=True,
-                        help="Path to JSON configuration file containing pipeline parameters")
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Path to YAML configuration file containing pipeline parameters")
     args = parser.parse_args()
     main(args)

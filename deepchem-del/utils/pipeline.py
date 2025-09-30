@@ -24,7 +24,8 @@ class Pipeline:
 
         # Initialize the settings from the default settings file
         if config.get("settings_file") is None:
-            settings = Settings(settings_file='./configs/default_settings.json')
+            settings = Settings(
+                settings_file='./configs/default_settings.json')
         else:
             settings = Settings(settings_file=config.get("settings_file"))
 
@@ -60,7 +61,8 @@ class Pipeline:
             If required configuration or client is missing.
         """
 
-        logger.info("Uploading data via Data client", extra={"run_id": self.run_id})
+        logger.info("Uploading data via Data client",
+                    extra={"run_id": self.run_id})
         config = self.config
         # files_to_upload is a list of files to upload. It can also be empty.
         files_to_upload = config.get("files_to_upload")
@@ -69,12 +71,14 @@ class Pipeline:
             return None
         uploaded_files = []
         for file_path in files_to_upload:
-            upload_file = self.data_client.upload_data(
-                file_path=file_path
-            )
+            upload_file = self.data_client.upload_data(file_path=file_path)
             uploaded_files.append(upload_file)
         logger.info("Data upload complete", extra={"run_id": self.run_id})
-        logger.debug("Uploaded data response", extra={"run_id": self.run_id, "payload": uploaded_files})
+        logger.debug("Uploaded data response",
+                     extra={
+                         "run_id": self.run_id,
+                         "payload": uploaded_files
+                     })
         return uploaded_files
 
     def run(self) -> Dict[str, Any]:
@@ -133,10 +137,12 @@ class Pipeline:
             )
 
             # Split the data
-            logger.info("Train/Valid/Test split started", extra={"run_id": self.run_id})
+            logger.info("Train/Valid/Test split started",
+                        extra={"run_id": self.run_id})
             t_split_start = perf_counter()
             train_valid_test_split_address = self.tvt_split_client.run(
-                dataset_address=featurized_dataset_address["featurized_file_address"],
+                dataset_address=featurized_dataset_address[
+                    "featurized_file_address"],
                 splitter_type=split_config.get("splitter_type"),
                 frac_train=split_config.get("frac_train"),
                 frac_valid=split_config.get("frac_valid"),
@@ -161,7 +167,8 @@ class Pipeline:
             logger.info("Training started", extra={"run_id": self.run_id})
             t_train_start = perf_counter()
             trained_model_address = self.train_client.run(
-                dataset_address=train_valid_test_split_address["train_valid_test_split_results_address"][0],
+                dataset_address=train_valid_test_split_address[
+                    "train_valid_test_split_results_address"][0],
                 model_type=train_config.get("model_type"),
                 model_name=train_config.get("model_name"),
                 init_kwargs=train_config.get("init_kwargs", None),
@@ -186,9 +193,13 @@ class Pipeline:
             logger.info("Evaluation started", extra={"run_id": self.run_id})
             t_eval_start = perf_counter()
             evaluation_result_address = self.evaluate_client.run(
-                dataset_addresses=(train_valid_test_split_address["train_valid_test_split_results_address"][0],
-                                   train_valid_test_split_address["train_valid_test_split_results_address"][1],
-                                   train_valid_test_split_address["train_valid_test_split_results_address"][2]),
+                dataset_addresses=(
+                    train_valid_test_split_address[
+                        "train_valid_test_split_results_address"][0],
+                    train_valid_test_split_address[
+                        "train_valid_test_split_results_address"][1],
+                    train_valid_test_split_address[
+                        "train_valid_test_split_results_address"][2]),
                 model_address=trained_model_address["trained_model_address"],
                 metrics=evaluate_config.get("metrics"),
                 output_key=evaluate_config.get("output_key"),
@@ -214,7 +225,8 @@ class Pipeline:
             t_infer_start = perf_counter()
             inference_result_address = self.infer_client.run(
                 model_address=trained_model_address["trained_model_address"],
-                data_address=train_valid_test_split_address["train_valid_test_split_results_address"][2],
+                data_address=train_valid_test_split_address[
+                    "train_valid_test_split_results_address"][2],
                 output=infer_config.get("output"),
                 dataset_column=infer_config.get("dataset_column"),
                 shard_size=infer_config.get("shard_size"),
@@ -237,16 +249,26 @@ class Pipeline:
 
             # Return the results
             result: Dict[str, Any] = {
+                "run_id": self.run_id,
                 "uploaded_files": denoised_file_path,
                 "featurized_dataset_address": featurized_dataset_address,
-                "train_valid_test_split_address": train_valid_test_split_address,
+                "train_valid_test_split_address":
+                train_valid_test_split_address,
                 "trained_model_address": trained_model_address,
                 "evaluation_result_address": evaluation_result_address,
                 "inference_result_address": inference_result_address
             }
             logger.info("Pipeline run complete", extra={"run_id": self.run_id})
-            logger.debug("Pipeline result payload", extra={"run_id": self.run_id, "payload": result})
+            logger.debug("Pipeline result payload",
+                         extra={
+                             "run_id": self.run_id,
+                             "payload": result
+                         })
             return result
         except Exception as e:
-            logger.error("Pipeline run failed", extra={"run_id": self.run_id, "error": e})
+            logger.error("Pipeline run failed",
+                         extra={
+                             "run_id": self.run_id,
+                             "error": e
+                         })
             raise
