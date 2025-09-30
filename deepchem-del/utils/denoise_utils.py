@@ -4,7 +4,7 @@ from math import sqrt
 from rdkit import Chem
 from scipy.stats import chi2
 from typing import Tuple, Dict, List
-from logging_utils import setup_logging
+from utils.logging_utils import setup_logging
 
 logger = setup_logging(__name__)
 

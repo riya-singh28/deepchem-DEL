@@ -1,7 +1,7 @@
 from uuid import uuid4
 from typing import Any, Dict
 from time import perf_counter
-from logging_utils import setup_logging
+from utils.logging_utils import setup_logging
 from pyds import Evaluate, Featurize, Infer, Train, Settings, Data, TVTSplit
 
 logger = setup_logging(__name__)
