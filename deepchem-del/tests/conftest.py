@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.fixture
-def pipeline_config() -> dict:
+def pipeline_config():
     """Provide a reusable pipeline configuration for tests."""
     return {
         "settings_file": "tests/assets/test_settings.json",
@@ -11,7 +11,7 @@ def pipeline_config() -> dict:
             "featurizer": "ecfp",
             "output": "feat_out_4",
             "dataset_column": "smiles",
-            "label_column": "Poisson_Enrichment",
+            "label_column": "target_enrichment",
         },
         "split_config": {
             "splitter_type": "random",
@@ -22,7 +22,9 @@ def pipeline_config() -> dict:
         "train_config": {
             "model_type": "random_forest_regressor",
             "model_name": "test_rf_reg_try4",
-            "init_kwargs": {"n_jobs": -1},
+            "init_kwargs": {
+                "n_jobs": -1
+            },
             "train_kwargs": {}
         },
         "evaluate_config": {
@@ -33,6 +35,6 @@ def pipeline_config() -> dict:
         "infer_config": {
             "output": "test_inference_result_4",
             "dataset_column": "smiles",
-            "label_column": "Poisson_Enrichment"
+            "label_column": "target_enrichment"
         }
     }

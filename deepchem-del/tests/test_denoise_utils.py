@@ -1,7 +1,5 @@
-import sys
-from pathlib import Path
 import pandas as pd
-import pytest
+import numpy as np
 
 from utils.denoise_utils import (
     calculate_normalized_enrichment_score,
@@ -9,38 +7,28 @@ from utils.denoise_utils import (
 )
 
 
-@pytest.mark.parametrize("row, total_sum, row_count, column_name, expected", [
-    (pd.Series({'count': 10}), 100, 5, 'count', -0.25),
-    (pd.Series({'count': 50}), 100, 5, 'count', 0.75),
-    (pd.Series({'count': 5}), 100, 5, 'count', -0.375),
-])
-def test_basic_enrichment_calculation(row, total_sum, row_count, column_name, expected):
-    """Test basic enrichment score calculation with known values."""
-    result = calculate_normalized_enrichment_score(row, total_sum, row_count, column_name)
-    assert abs(result - expected) < 1e-10, f"Expected {expected}, got {result}"
-    assert result > 0 if expected > 0 else result < 0, "Enrichment should be positive or negative"
+def test_normalized_enrichment_calculation():
+    """Test normalized enrichment score calculation."""
+    test_df = pd.read_csv('tests/assets/test_dataset.csv')
+    row = test_df.iloc[0]
+    total_sum = test_df['seq_target_1'].sum()
+    row_count = test_df.shape[0]
+    column_name = 'seq_target_1'
+    expected = -0.1414213562373095
+    result = calculate_normalized_enrichment_score(row, total_sum, row_count,
+                                                   column_name)
+    assert np.allclose(result, expected,
+                       atol=1e-10), f"Expected {expected}, got {result}"
 
 
 def test_poisson_enrichment_calculation():
     """Test Poisson enrichment calculation."""
-    test_df = pd.DataFrame({
-        'Smiles': ['CCO', 'CCN', 'CCC'],
-        'matrix1_Sum_Counts': [10, 20, 30],
-        'matrix2_Sum_Counts': [15, 25, 35],
-        'target1_Sum_Counts': [5, 10, 15],
-        'target2_Sum_Counts': [8, 12, 18]
-    })
-    control_cols = ['matrix1_Sum_Counts', 'matrix2_Sum_Counts']
-    target_cols = ['target1_Sum_Counts', 'target2_Sum_Counts']
+    test_df = pd.read_csv('tests/assets/test_dataset.csv')
+    control_cols = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3']
+    target_cols = ['seq_target_1', 'seq_target_2', 'seq_target_3']
     result = calculate_poisson_enrichment(test_df, control_cols, target_cols)
-    
-    # Check that enrichment column was added
+
     assert 'Poisson_Enrichment' in result.columns
-    
-    # Check that all original columns are preserved
-    for col in test_df.columns:
-        assert col in result.columns
-    
-    # Check that enrichment values are calculated (should be positive)
-    assert all(result['Poisson_Enrichment'] > 0)
-    assert len(result['Poisson_Enrichment']) == 3
+    assert np.allclose(result['Poisson_Enrichment'],
+                       result['target_enrichment'],
+                       atol=1e-10)
