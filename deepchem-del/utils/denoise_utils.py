@@ -324,11 +324,10 @@ def create_disynthon_pairs(
                     pair_df.rename(columns={col2: 'Disynthon_2'}, inplace=True)
                     pair_sums[pair_label] = pair_df
     else:
-        df['seq_target_sum'] = df[target_cols[0]] + df[target_cols[1]] + df[target_cols[2]]
-        df['seq_control_sum'] = df[control_cols[0]] + df[control_cols[1]] + df[control_cols[2]]
-
         seq_target_col = f'seq_target_{aggregate_operation}'
         seq_control_col = f'seq_control_{aggregate_operation}'
+        df[seq_target_col] = df[target_cols[0]] + df[target_cols[1]] + df[target_cols[2]]
+        df[seq_control_col] = df[control_cols[0]] + df[control_cols[1]] + df[control_cols[2]]
 
         pair_sums = {}
         for i in range(len(smiles_cols)):
