@@ -8,9 +8,13 @@ import argparse
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from utils.pipeline import Pipeline
-from utils.logging_utils import setup_logging
-from utils.denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
+# from utils.pipeline import Pipeline
+# from utils.logging_utils import setup_logging
+# from utils.denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
+
+from logging_utils import setup_logging
+from denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
+from pipeline import Pipeline
 
 logger = setup_logging(__name__)
 
@@ -24,8 +28,7 @@ def denoise_data(file_path: str,
                  target_cols: List[str] = [
                      'seq_target_1', 'seq_target_2', 'seq_target_3'
                  ],
-                 percentile: float = 90,
-                 aggregate_operation: str = 'sum') -> str:
+                 percentile: float = 90) -> str:
     """Denoise and preprocess trisynthon data for classification analysis.
 
     This function performs comprehensive data preprocessing including:
@@ -49,8 +52,6 @@ def denoise_data(file_path: str,
         Column names representing target selection counts.
     percentile
         Percentile threshold (0-100) used to call hits from enrichment scores.
-    aggregate_operation
-        Aggregation operation used across columns (e.g., 'sum').
 
     Returns
     -------
@@ -88,19 +89,19 @@ def denoise_data(file_path: str,
     logger.info("Dropped rows (drop duplicates)",
                 extra={"rows": len(data[data['smiles'].duplicated()])})
 
-    seq_target_col = f'seq_target_{aggregate_operation}'
-    seq_control_col = f'seq_control_{aggregate_operation}'
-    data[seq_target_col] = data[target_cols].agg(aggregate_operation, axis=1)
-    data[seq_control_col] = data[control_cols].agg(aggregate_operation, axis=1)
+    data['seq_target_sum'] = data[target_cols].agg('sum', axis=1)
+    data['seq_control_sum'] = data[control_cols].agg('sum', axis=1)
 
     # calculate enrichment scores
     data['Target_Enrichment_Score'] = data.swifter.apply(
         lambda row: calculate_normalized_enrichment_score(
-            row, data[seq_target_col].sum(), data.shape[0], seq_target_col),
+            row, data['seq_target_sum'].sum(), data.shape[0], 'seq_target_sum'
+        ),
         axis=1)
     data['Control_Enrichment_Score'] = data.swifter.apply(
         lambda row: calculate_normalized_enrichment_score(
-            row, data[seq_control_col].sum(), data.shape[0], seq_control_col),
+            row, data['seq_control_sum'].sum(), data.shape[0],
+            'seq_control_sum'),
         axis=1)
 
     print(data.head())
@@ -149,7 +150,7 @@ def non_unified_trisynthon_classification_pipeline(
         control_cols=config['denoise_config']['control_cols'],
         target_cols=config['denoise_config']['target_cols'],
         percentile=config['denoise_config']['hit_percentile'],
-        aggregate_operation=config['denoise_config']['aggregate_operation'])
+    )
 
     # target pipeline
     target_config = config['target_config']

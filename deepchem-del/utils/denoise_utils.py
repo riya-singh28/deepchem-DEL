@@ -9,62 +9,6 @@ from utils.logging_utils import setup_logging
 logger = setup_logging(__name__)
 
 
-def aggregate_columns(df: pd.DataFrame, column_groups: Dict[str, List[str]], operation: str = 'sum') -> pd.DataFrame:
-    """
-    Aggregate multiple columns in a DataFrame with specified operations.
-
-    Parameters
-    ----------
-    df: pd.DataFrame
-        The DataFrame to process
-    column_groups: Dict[str, List[str]]
-        Dictionary mapping output column names to lists of input column names
-        Example: {'seq_target_sum': ['seq_target_1', 'seq_target_2', 'seq_target_3']}
-    operation: str, default 'sum'
-        The aggregation operation to perform. Options:
-        - 'sum': Sum of columns
-        - 'mean': Average of columns
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with new aggregated columns added
-
-    Examples
-    --------
-    >>> df = pd.DataFrame({
-    ...     'seq_target_1': [1, 2, 3],
-    ...     'seq_target_2': [4, 5, 6],
-    ...     'seq_target_3': [7, 8, 9]
-    ... })
-    >>> result = aggregate_columns(df, {'target_sum': ['seq_target_1', 'seq_target_2', 'seq_target_3']}, 'sum')
-    >>> print(result['target_sum'].tolist())
-    [12, 15, 18]
-    """
-
-    # Validate operation
-    valid_operations = ['sum', 'mean']
-    if operation not in valid_operations:
-        raise ValueError(f"Invalid operation '{operation}'. Must be one of: {valid_operations}")
-
-    # Create a copy to avoid modifying the original DataFrame
-    result_df = df.copy()
-
-    # Process each column group
-    for output_name, input_columns in column_groups.items():
-        # Validate that all input columns exist
-        missing_columns = [col for col in input_columns if col not in df.columns]
-        if missing_columns:
-            raise ValueError(f"Columns not found in DataFrame: {missing_columns}")
-
-        # Perform the aggregation
-        if operation == 'sum':
-            result_df[output_name] = df[input_columns].sum(axis=1)
-        elif operation == 'mean':
-            result_df[output_name] = df[input_columns].mean(axis=1)
-
-    return result_df
-
 def calculate_normalized_enrichment_score(row: pd.Series, total_sum: float, row_count: int, column_name: str) -> float:
     """
     This transformation function calculates the enrichment score for each row
@@ -246,13 +190,18 @@ def calculate_poisson_enrichment(df: pd.DataFrame,
 def create_disynthon_pairs(
     df: pd.DataFrame,
     smiles_cols: List[str],
-    aggregate_operation: str = 'sum',
     control_cols: List[str] = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3'],
     target_cols: List[str] = ['seq_target_1', 'seq_target_2', 'seq_target_3'],
     is_unified: bool = True,
 ) -> pd.DataFrame:
     """
-    Create disynthon pairs from the trisynthon data.
+    Creates disynthon pairs from the trisynthon data.
+
+    In the non-unified setting, each replicate is treated as an independent runs 
+    under identical experimental conditions. Accordingly, the three replicates of 
+    the target are combined into one large experiment, while the three replicates 
+    of the control are combined into a separate large experiment, after which 
+    denoising is performed.
 
     Parameters
     ----------
@@ -260,8 +209,6 @@ def create_disynthon_pairs(
         The DataFrame to be processed
     smiles_cols: List[str]
         The list of smiles columns
-    aggregate_operation: str, default 'sum'
-        The aggregate operation to be performed
     control_cols: List[str], default ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3']
         The list of control columns
     target_cols: List[str], default ['seq_target_1', 'seq_target_2', 'seq_target_3']
@@ -288,7 +235,7 @@ def create_disynthon_pairs(
     >>> control_cols = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3']
     >>> target_cols = ['seq_target_1', 'seq_target_2', 'seq_target_3']
     >>> smiles_cols = ['smile_a', 'smile_b', 'smile_c']
-    >>> disynthon_data, smiles_dict = create_disynthon_pairs(df, smiles_cols, 'sum', control_cols, target_cols, is_unified=True)
+    >>> disynthon_data, smiles_dict = create_disynthon_pairs(df, smiles_cols, control_cols, target_cols, is_unified=True)
     """
     smiles_set = set()
     for column_name in df.columns:
@@ -313,21 +260,19 @@ def create_disynthon_pairs(
                 if col1 != col2:
                     pair_label = f"{col1}_{col2}_Pair"
                     pair_df = df.groupby([col1, col2]).agg({
-                        control_cols[0]: aggregate_operation,
-                        control_cols[1]: aggregate_operation,
-                        control_cols[2]: aggregate_operation,
-                        target_cols[0]: aggregate_operation,
-                        target_cols[1]: aggregate_operation,
-                        target_cols[2]: aggregate_operation,
+                        control_cols[0]: 'sum',
+                        control_cols[1]: 'sum',
+                        control_cols[2]: 'sum',
+                        target_cols[0]: 'sum',
+                        target_cols[1]: 'sum',
+                        target_cols[2]: 'sum',
                     }).reset_index()
                     pair_df.rename(columns={col1: 'Disynthon_1'}, inplace=True)
                     pair_df.rename(columns={col2: 'Disynthon_2'}, inplace=True)
                     pair_sums[pair_label] = pair_df
     else:
-        seq_target_col = f'seq_target_{aggregate_operation}'
-        seq_control_col = f'seq_control_{aggregate_operation}'
-        df[seq_target_col] = df[target_cols[0]] + df[target_cols[1]] + df[target_cols[2]]
-        df[seq_control_col] = df[control_cols[0]] + df[control_cols[1]] + df[control_cols[2]]
+        df['seq_target_sum'] = df[target_cols[0]] + df[target_cols[1]] + df[target_cols[2]]
+        df['seq_control_sum'] = df[control_cols[0]] + df[control_cols[1]] + df[control_cols[2]]
 
         pair_sums = {}
         for i in range(len(smiles_cols)):
@@ -337,8 +282,8 @@ def create_disynthon_pairs(
                 if col1 != col2:
                     pair_label = f"{col1}_{col2}_Pair"
                     pair_df = df.groupby([col1, col2]).agg({
-                        seq_target_col: aggregate_operation,
-                        seq_control_col: aggregate_operation
+                        'seq_target_sum': 'sum',
+                        'seq_control_sum': 'sum'
                     }).reset_index()
                     pair_df.rename(columns={col1: 'Disynthon_1'}, inplace=True)
                     pair_df.rename(columns={col2: 'Disynthon_2'}, inplace=True)

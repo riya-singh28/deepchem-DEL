@@ -9,9 +9,13 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Any
-from utils.logging_utils import setup_logging
-from utils.pipeline import Pipeline
-from utils.denoise_utils import calculate_normalized_enrichment_score, create_disynthon_pairs, get_disynthons_from_pairs
+# from utils.logging_utils import setup_logging
+# from utils.pipeline import Pipeline
+# from utils.denoise_utils import calculate_normalized_enrichment_score, create_disynthon_pairs, get_disynthons_from_pairs
+
+from logging_utils import setup_logging
+from denoise_utils import calculate_normalized_enrichment_score, create_disynthon_pairs, get_disynthons_from_pairs
+from pipeline import Pipeline
 
 logger = setup_logging(__name__)
 
@@ -21,17 +25,22 @@ def denoise_data(
     output_target_file_path: str,
     output_control_file_path: str,
     smiles_cols: List[str],
-    aggregate_operation: str = 'sum',
     control_cols: List[str] = ['seq_matrix_1', 'seq_matrix_2', 'seq_matrix_3'],
     target_cols: List[str] = ['seq_target_1', 'seq_target_2', 'seq_target_3'],
     hit_percentile: float = 90,
 ) -> pd.DataFrame:
     """Create disynthons from trisynthons and generate hit labels.
 
+    In the non-unified setting, each replicate is treated as an independent runs
+    under identical experimental conditions. Accordingly, the three replicates of
+    the target are combined into one large experiment, while the three replicates
+    of the control are combined into a separate large experiment, after which
+    denoising is performed.
+
     Steps
     -----
     - Drop duplicates/NaNs from smiles column.
-    - Create disynthon pairs and aggregate counts.
+    - Create disynthon pairs and sum counts.
     - Calculate enrichment scores for target and control.
     - Determine target and control hit threshold based on percentile.
     - Create binary hit labels for target and control.
@@ -47,8 +56,6 @@ def denoise_data(
         Path to write the denoised disynthon CSV with control hits.
     smiles_cols
         Names of the three trisynthon `smiles` columns to derive disynthons.
-    aggregate_operation
-        Aggregation across component columns (e.g., 'sum').
     control_cols
         Column names for control selection counts.
     target_cols
@@ -96,7 +103,6 @@ def denoise_data(
     disynthon_data, smiles_dict = create_disynthon_pairs(
         df=data,
         smiles_cols=smiles_cols,
-        aggregate_operation=aggregate_operation,
         control_cols=control_cols,
         target_cols=target_cols,
         is_unified=False)
@@ -112,26 +118,24 @@ def denoise_data(
     disynthon_data = disynthon_data[~disynthon_data['disynthons'].isna()]
 
     # sum of duplicate disynthons
-    seq_target_col = f'seq_target_{aggregate_operation}'
-    seq_control_col = f'seq_control_{aggregate_operation}'
     print(disynthon_data.head())
     disynthon_data = disynthon_data.groupby('disynthons').agg({
-        seq_target_col:
-        aggregate_operation,
-        seq_control_col:
-        aggregate_operation
+        'seq_target_sum':
+        'sum',
+        'seq_control_sum':
+        'sum'
     }).reset_index()
 
     # calculate enrichment scores
     disynthon_data['Target_Enrichment_Score'] = disynthon_data.swifter.apply(
         lambda row: calculate_normalized_enrichment_score(
-            row, disynthon_data[seq_target_col].sum(), len(disynthon_data),
-            seq_target_col),
+            row, disynthon_data['seq_target_sum'].sum(), len(disynthon_data),
+            'seq_target_sum'),
         axis=1)
     disynthon_data['Control_Enrichment_Score'] = disynthon_data.swifter.apply(
         lambda row: calculate_normalized_enrichment_score(
-            row, disynthon_data[seq_control_col].sum(), len(disynthon_data),
-            seq_control_col),
+            row, disynthon_data['seq_control_sum'].sum(), len(disynthon_data),
+            'seq_control_sum'),
         axis=1)
 
     target_hit_threshold = np.percentile(
@@ -170,7 +174,6 @@ def non_unified_disynthon_classification_pipeline(
         output_control_file_path=config['denoise_config']
         ['control_output_file_path'],
         smiles_cols=config['denoise_config']['smiles_cols'],
-        aggregate_operation=config['denoise_config']['aggregate_operation'],
         control_cols=config['denoise_config']['control_cols'],
         target_cols=config['denoise_config']['target_cols'],
         hit_percentile=config['denoise_config']['hit_percentile'])
