@@ -8,13 +8,9 @@ import argparse
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-# from utils.pipeline import Pipeline
-# from utils.logging_utils import setup_logging
-# from utils.denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
-
-from logging_utils import setup_logging
-from denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
-from pipeline import Pipeline
+from utils.pipeline import Pipeline
+from utils.logging_utils import setup_logging
+from utils.denoise_utils import calculate_normalized_enrichment_score, calculate_hit_threshold
 
 logger = setup_logging(__name__)
 
