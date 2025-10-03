@@ -113,6 +113,41 @@ Inspect and modify these configs to point to your datasets and adjust model/trai
 
 ## Held-out analysis
 
+All trained models were evaluated on held-out KinDEL data, including both on-DNA (in-library and extended) and off-DNA (in-library and extended) test sets. For classification models, compounds in the held-out set were labeled as hits if their Kd values were within the lowest 10%, and as non-hits otherwise. In the case of non-unified classification models, target and control predictions were integrated using a Target AND NOT Control scheme.
+
+
+![Table 1](./deepchem-del/docs/images/Table1.png)*Fig2: Performance of unified regression models for amplified (di) and non-amplified (tri) on the DDR1 kinase target under random split evaluation. Models were trained jointly across
+targets to predict enrichment values. Results are reported as test RMSE (lower is better) and negative Pearson correlation for held-out in-library and held-out extended library sets.*
+
+![Table 2](./deepchem-del/docs/images/Table2.png)*Fig3: Performance of unified regression models for amplified (di) and non-amplified (tri) on the MAPK14 kinase target under random split evaluation. Models were trained jointly across targets to predict enrichment values. Results are reported as test RMSE (lower is better) and negative Pearson correlation for held-out in-library and held-out extended library
+sets.*
+
+![Table 3](./deepchem-del/docs/images/Table3.png)*Fig4:  Performance of unified classification models for amplified (di) and non-amplified
+(tri) on the DDR1 target under random split evaluation. Models were trained jointly across
+targets, with molecules binned into hits (top 10% enrichment scores) and non-hits (remaining
+90%). Results are reported as ROC–AUC scores (higher is better) for the test set, held-out
+in-library set, and held-out extended library set.*
+
+![Table 4](./deepchem-del/docs/images/Table4.png)
+*Fig5: Performance of unified classification models for amplified (di) and non-amplified
+(tri) on the MAPK14 target under random split evaluation. Models were trained jointly
+across targets, with molecules binned into hits (top 10% enrichment scores) and non-hits
+(remaining 90%). Results are reported as ROC–AUC scores (higher is better) for the test
+set, held-out in-library set, and held-out extended library set.*
+
+![Table 5](./deepchem-del/docs/images/Table5.png)
+*Performance of non-unified classification models for amplified (di) and non-amplified
+(tri) on the DDR1 target under random split evaluation. Models were trained separately for
+the target and its control, with molecules binned into hits (top 10% enrichment scores) and
+non-hits (remaining 90%). Results are reported as ROC–AUC scores (higher is better) for
+the test set, held-out in-library set, and held-out extended library set.*
+
+![Table 6](./deepchem-del/docs/images/Table6.png)
+*Performance of non-unified classification models for amplified (di) and non-amplified
+(tri) on the MAPK14 target under random split evaluation. Models were trained separately
+for the target and its control, with molecules binned into hits (top 10% enrichment scores)
+and non-hits (remaining 90%). Results are reported as ROC–AUC scores (higher is better)
+for the test set, held-out in-library set, and held-out extended library set.*
 
 ---
 
