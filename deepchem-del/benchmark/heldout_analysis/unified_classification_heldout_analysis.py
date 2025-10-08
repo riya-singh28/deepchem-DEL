@@ -11,6 +11,7 @@ threshold over the kd distribution.
 """
 
 import os
+import json
 import yaml
 import argparse
 from typing import Dict
@@ -53,20 +54,22 @@ def get_testing_data(
         to a DataFrame with columns `smiles`, `y` (kd), and `hits` (0/1).
     """
     mode_path = os.path.join(heldout_dir, f"{target}_{mode}.csv")
-    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"}, axis="columns")
+    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"},
+                                                         axis="columns")
     mode_threshold = float(np.percentile(mode_df["y"], hit_percentile))
     mode_df["hits"] = (mode_df["y"] < mode_threshold).astype(int)
     if in_library:
         # Retain only rows that have `molecule_hash` defined
         if "molecule_hash" in mode_df.columns:
-            mode_df = mode_df.dropna(subset=["molecule_hash"])  # type: ignore[arg-type]
+            mode_df = mode_df.dropna(subset=["molecule_hash"
+                                             ])  # type: ignore[arg-type]
 
     return {f"{mode}": mode_df}
 
 
 def evaluate_auc(
     heldout_dir: str,
-    target_inference_path: str,
+    inference_path: str,
     target: str,
     mode: str,
     in_library: bool,
@@ -78,7 +81,7 @@ def evaluate_auc(
     ----------
     heldout_dir: str
         Directory containing heldout KiNDEL files for the requested target.
-    target_inference_path: str
+    inference_path: str
         CSV file with model predictions for the target; must include columns
         ``X`` (SMILES) and ``y2_preds`` (predicted scores). ``X`` will be
         renamed to ``smiles`` for merging.
@@ -97,7 +100,7 @@ def evaluate_auc(
         ROC AUC computed over the merged compounds.
     """
 
-    df = pd.read_csv(target_inference_path)
+    df = pd.read_csv(inference_path)
     df = df.rename(columns={'X': 'smiles'})
 
     kindel_heldout = get_testing_data(
@@ -121,8 +124,7 @@ def main(args: argparse.Namespace) -> None:
 
     The configuration YAML pointed to by ``--heldout_config`` must define:
     - ``heldout_dir``: directory with KiNDEL heldout CSVs
-    - ``target_inference_path``: path to predictions CSV (columns ``X``, ``y2_preds``)
-    - ``matrix_inference_path``: placeholder path kept for parity
+    - ``inference_path``: path to predictions CSV (columns ``X``, ``y2_preds``)
     - ``target``: target identifier
     - ``mode``: either "ondna" or "offdna"
     - ``in_library``: boolean flag
@@ -135,19 +137,25 @@ def main(args: argparse.Namespace) -> None:
 
     auc_value = evaluate_auc(
         heldout_dir=heldout_config['heldout_dir'],
-        target_inference_path=heldout_config['target_inference_path'],
-        matrix_inference_path=heldout_config['matrix_inference_path'],
+        inference_path=heldout_config['inference_path'],
         target=heldout_config['target'],
         mode=heldout_config['mode'],
         in_library=heldout_config['in_library'],
         hit_percentile=heldout_config['hit_percentile'],
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output'])) or ".", exist_ok=True)
-    pd.DataFrame({"roc_auc": [auc_value]}).to_csv(heldout_config['output'], index=False)
-
-    # with pd.option_context("display.max_rows", None, "display.max_columns", None):
-    #     print(df_results)
+    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output']))
+                or ".",
+                exist_ok=True)
+    result = {
+        'mode': heldout_config['mode'],
+        'target': heldout_config['target'],
+        'in_library': heldout_config['in_library'],
+        'hit_percentile': heldout_config['hit_percentile'],
+        'roc_auc': auc_value
+    }
+    with open(heldout_config['output'], 'w') as f:
+        json.dump(result, f)
 
 
 if __name__ == "__main__":

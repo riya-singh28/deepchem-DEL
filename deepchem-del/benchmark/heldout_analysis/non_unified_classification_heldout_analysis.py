@@ -3,6 +3,7 @@ Non-unified classification heldout analysis (script).
 """
 
 import os
+import json
 import yaml
 import argparse
 import numpy as np
@@ -40,14 +41,16 @@ def get_testing_data(
         `smiles`, `y` (kd), and `hits` (0/1).
     """
     mode_path = os.path.join(heldout_dir, f"{target}_{mode}.csv")
-    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"}, axis="columns")
+    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"},
+                                                         axis="columns")
     mode_threshold = float(np.percentile(mode_df["y"], hit_percentile))
     mode_df["hits"] = (mode_df["y"] < mode_threshold).astype(int)
 
     if in_library:
         # Retain only rows that have `molecule_hash` defined
         if "molecule_hash" in mode_df.columns:
-            mode_df = mode_df.dropna(subset=["molecule_hash"])  # type: ignore[arg-type]
+            mode_df = mode_df.dropna(subset=["molecule_hash"
+                                             ])  # type: ignore[arg-type]
 
     return {f"{mode}": mode_df}
 
@@ -91,7 +94,7 @@ def evaluate_auc(
     df_m = pd.read_csv(matrix_inference_path)
     df_t["hit_t"] = df_t["y2_preds"]
     df_m["hit_m"] = df_m["y1_preds"]
-    df_comb = pd.concat([df_t[["smiles", "hit_t"]], df_m[["hit_m"]]], axis=1)
+    df_comb = pd.concat([df_t[["X", "hit_t"]], df_m[["hit_m"]]], axis=1)
     df_comb["net_result"] = df_comb.apply(lambda x: x.hit_t * x.hit_m, axis=1)
     df_comb = df_comb.rename(columns={'X': 'smiles'})
 
@@ -107,7 +110,8 @@ def evaluate_auc(
     else:
         df_kindel_headout = kindel_headout["offdna"]
     merged_df = pd.merge(df_kindel_headout, df_comb, on='smiles', how='inner')
-    roc_auc_score_val = roc_auc_score(merged_df['hits'], merged_df['net_result'])
+    roc_auc_score_val = roc_auc_score(merged_df['hits'],
+                                      merged_df['net_result'])
     return roc_auc_score_val
 
 
@@ -134,8 +138,20 @@ def main(args: argparse.Namespace) -> None:
         hit_percentile=heldout_config['hit_percentile'],
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output'])) or ".", exist_ok=True)
-    df_results.to_csv(heldout_config['output'], index=False)
+    result = {
+        'mode': heldout_config['mode'],
+        'target': heldout_config['target'],
+        'in_library': heldout_config['in_library'],
+        'hit_percentile': heldout_config['hit_percentile'],
+        'roc_auc': df_results
+    }
+
+    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output']))
+                or ".",
+                exist_ok=True)
+    # save the results in a json file
+    with open(heldout_config['output'], 'w') as f:
+        json.dump(result, f)
 
     # with pd.option_context("display.max_rows", None, "display.max_columns", None):
     #     print(df_results)

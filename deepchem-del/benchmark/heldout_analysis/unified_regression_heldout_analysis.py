@@ -11,6 +11,7 @@ threshold over the kd distribution.
 """
 
 import os
+import json
 import yaml
 import argparse
 import numpy as np
@@ -52,7 +53,8 @@ def get_testing_data(
         to a DataFrame with columns `smiles`, `y` (kd), and `hits` (0/1).
     """
     mode_path = os.path.join(heldout_dir, f"{target}_{mode}.csv")
-    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"}, axis="columns")
+    mode_df = pd.read_csv(mode_path, index_col=0).rename({"kd": "y"},
+                                                         axis="columns")
     mode_threshold = float(np.percentile(mode_df["y"], hit_percentile))
 
     mode_df["hits"] = (mode_df["y"] < mode_threshold).astype(int)
@@ -60,7 +62,8 @@ def get_testing_data(
     if in_library:
         # Retain only rows that have `molecule_hash` defined
         if "molecule_hash" in mode_df.columns:
-            mode_df = mode_df.dropna(subset=["molecule_hash"])  # type: ignore[arg-type]
+            mode_df = mode_df.dropna(subset=["molecule_hash"
+                                             ])  # type: ignore[arg-type]
 
     return {f"{mode}": mode_df}
 
@@ -117,10 +120,10 @@ def evaluate_spearman(
     else:
         df_kindel_heldout = kindel_heldout["offdna"]
     merged_df = pd.merge(df_kindel_heldout, df, on='smiles', how='inner')
-    
+
     # Calculate Spearman correlation
     corr, p_value = spearmanr(merged_df['y'], merged_df['y_preds'])
-    n_sp_corr = -1*corr
+    n_sp_corr = -1 * corr
 
     return n_sp_corr
 
@@ -150,11 +153,20 @@ def main(args: argparse.Namespace) -> None:
         hit_percentile=heldout_config['hit_percentile'],
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output'])) or ".", exist_ok=True)
-    pd.DataFrame({"negative_spearman_corr": [n_spearman_value]}).to_csv(heldout_config['output'], index=False)
+    result = {
+        'mode': heldout_config['mode'],
+        'target': heldout_config['target'],
+        'in_library': heldout_config['in_library'],
+        'hit_percentile': heldout_config['hit_percentile'],
+        'negative_spearman_corr': n_spearman_value
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(heldout_config['output']))
+                or ".",
+                exist_ok=True)
 
-    # with pd.option_context("display.max_rows", None, "display.max_columns", None):
-    #     print(df_results)
+    # save the results in a json file
+    with open(heldout_config['output'], 'w') as f:
+        json.dump(result, f)
 
 
 if __name__ == "__main__":
